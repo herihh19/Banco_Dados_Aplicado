@@ -1,0 +1,169 @@
+CREATE TABLE d_cliente (
+    id_cliente_surrogate INT PRIMARY KEY AUTO_INCREMENT,
+    id_cliente_natural INT,
+    nome VARCHAR(100),
+    data_nascimento DATE,
+    endereco VARCHAR(255),
+    categoria_fidelidade VARCHAR(20),
+    data_inicio_vigencia DATE,
+    data_fim_vigencia DATE,
+    ativo BOOLEAN,
+    UNIQUE (id_cliente_natural, data_inicio_vigencia)
+);
+CREATE TABLE d_hotel (
+    id_hotel_surrogate INT PRIMARY KEY AUTO_INCREMENT,
+    id_hotel_natural INT,
+    nome_hotel VARCHAR(100),
+    cidade VARCHAR(50),
+    pais VARCHAR(50),
+    data_inauguracao DATE
+);
+CREATE TABLE d_quarto (
+    id_quarto_surrogate INT PRIMARY KEY AUTO_INCREMENT,
+    id_quarto_natural INT,
+    id_hotel_surrogate INT,
+    tipo_quarto VARCHAR(50),
+    status_manutencao VARCHAR(20),
+    data_ultima_reforma DATE,
+    data_inicio_vigencia DATE,
+    data_fim_vigencia DATE,
+    ativo BOOLEAN,
+    FOREIGN KEY (id_hotel_surrogate) REFERENCES d_hotel(id_hotel_surrogate),
+    UNIQUE (id_quarto_natural, data_inicio_vigencia)
+);
+CREATE TABLE d_tempo (
+    data DATE PRIMARY KEY,
+    ano INT,
+    mes INT,
+    dia INT,
+    trimestre INT
+);
+CREATE TABLE d_receita (
+    id_receita INT PRIMARY KEY AUTO_INCREMENT,
+    id_hotel_surrogate INT,
+    data DATE,
+    receita_total_diaria DECIMAL(10, 2),
+    despesas_operacionais_diarias DECIMAL(10, 2),
+    FOREIGN KEY (id_hotel_surrogate) REFERENCES d_hotel(id_hotel_surrogate)
+);
+CREATE TABLE f_reserva (
+    id_reserva INT PRIMARY KEY AUTO_INCREMENT,
+    id_cliente_surrogate INT,
+    id_hotel_surrogate INT,
+    id_quarto_surrogate INT,
+    data_checkin DATE,
+    data_checkout DATE,
+    valor_total_reserva DECIMAL(10, 2),
+    FOREIGN KEY (id_cliente_surrogate) REFERENCES d_cliente(id_cliente_surrogate),
+    FOREIGN KEY (id_hotel_surrogate) REFERENCES d_hotel(id_hotel_surrogate),
+    FOREIGN KEY (id_quarto_surrogate) REFERENCES d_quarto(id_quarto_surrogate),
+    FOREIGN KEY (data_checkin) REFERENCES d_tempo(data),
+    FOREIGN KEY (data_checkout) REFERENCES d_tempo(data)
+);
+
+
+--1. Qual é a receita média por cliente em cada categoria de fidelidade?
+SELECT 
+    d_cliente.categoria_fidelidade,
+    AVG(f_reserva.valor_total_reserva) AS receita_media_por_cliente
+FROM 
+    f_reserva
+JOIN 
+    d_cliente ON f_reserva.id_cliente = d_cliente.id_cliente
+GROUP BY 
+    d_cliente.categoria_fidelidade;
+    
+    
+--2. Quais hotéis possuem as taxas de ocupação mais altas em um período específico?
+SELECT 
+    d_hotel.nome_hotel,
+    d_tempo.ano,
+    d_tempo.mes,
+    COUNT(f_reserva.id_quarto) / COUNT(d_quarto.id_quarto) * 100 AS taxa_ocupacao
+FROM 
+    f_reserva
+JOIN 
+    d_hotel ON f_reserva.id_hotel = d_hotel.id_hotel
+JOIN 
+    d_quarto ON f_reserva.id_quarto = d_quarto.id_quarto
+JOIN 
+    d_tempo ON f_reserva.data_checkin = d_tempo.data
+WHERE 
+    d_tempo.ano = 2024 
+    AND d_tempo.mes = 7
+GROUP BY 
+    d_hotel.nome_hotel, d_tempo.ano, d_tempo.mes
+ORDER BY 
+    taxa_ocupacao DESC
+LIMIT 10; 
+
+
+--3. Qual a média de tempo que os clientes de uma determinada categoria de fidelidade permanecem nos hotéis?
+SELECT 
+    d_cliente.categoria_fidelidade,
+    AVG(DATEDIFF(f_reserva.data_checkout, f_reserva.data_checkin)) AS media_tempo_permanencia
+FROM 
+    f_reserva
+JOIN 
+    d_cliente ON f_reserva.id_cliente = d_cliente.id_cliente
+GROUP BY 
+    d_cliente.categoria_fidelidade;
+    
+    
+
+--4. Quais quartos são mais frequentemente reformados, e com que frequência?
+SELECT 
+    d_quarto.id_quarto,
+    d_quarto.tipo_quarto,
+    COUNT(d_quarto.data_ultima_reforma) AS frequencia_reformas
+FROM 
+    d_quarto
+WHERE 
+    d_quarto.data_ultima_reforma IS NOT NULL
+GROUP BY 
+    d_quarto.id_quarto, d_quarto.tipo_quarto
+ORDER BY 
+    frequencia_reformas DESC;
+
+
+
+--5. Qual o perfil dos clientes com maior gasto em reservas por país e categoria de fidelidade?
+SELECT 
+    d_cliente.categoria_fidelidade,
+    d_hotel.pais,
+    d_cliente.nome,
+    SUM(f_reserva.valor_total_reserva) AS gasto_total
+FROM 
+    f_reserva
+JOIN 
+    d_cliente ON f_reserva.id_cliente = d_cliente.id_cliente
+JOIN 
+    d_hotel ON f_reserva.id_hotel = d_hotel.id_hotel
+GROUP BY 
+    d_cliente.categoria_fidelidade, d_hotel.pais, d_cliente.nome
+ORDER BY 
+    gasto_total DESC
+LIMIT 10; 
+
+--Questôes:
+--1. Tabelas Operacionais são: CLIENTE, RESERVA, QUARTO, HOTEL e RECEITAS.
+
+--2. Chaves Surrogate: Usadas nas tabelas de CLIENTE(clientes) e QUARTO(quartos).
+
+--3. Dimensões com SCD Tipo 2: `d_cliente` e `d_quarto` precisam de histórico de mudanças. Para cada alteração, uma nova linha é criada, com colunas `data_inicio_vigencia`, `data_fim_vigencia` e `ativo` indicando registros válidos.
+
+--4. Métricas: Aditivas: Receita total e valor total de reserva; Não Aditiva: Taxa média de ocupação.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
